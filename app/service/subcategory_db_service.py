@@ -71,3 +71,9 @@ class SubcategoryDBService:
         )
         if item:
             self.item_collection.delete_one(item)
+            return 1
+
+
+    def delete_many(self, query: dict):
+
+        self.item_collection.delete_many(query)

@@ -33,6 +33,30 @@ class ProductDBService:
         return item_list, doc_count
 
 
+    def find_all_by_category_id(self, category_id):
+
+        item_cursor = self.item_collection.find(
+            {'category_id': category_id},
+            {'_id': 0}
+        )
+
+        item_list = [item for item in item_cursor]
+
+        return item_list
+
+
+    def find_all_by_subcategory_id(self, subcategory_id):
+
+        item_cursor = self.item_collection.find(
+            {'subcategory_id': subcategory_id},
+            {'_id': 0}
+        )
+
+        item_list = [item for item in item_cursor]
+
+        return item_list
+
+
     def find_from_ids(self, item_ids: list):
 
         items = []
@@ -65,3 +89,19 @@ class ProductDBService:
             {'product_id': item_id},
             {'$set': item}
         )
+
+
+    def delete_one(self, item_id: str):
+
+        item = self.item_collection.find_one(
+            {'product_id': item_id},
+            {'_id': 0}
+        )
+        if item:
+            self.item_collection.delete_one(item)
+            return 1
+
+
+    def delete_many(self, query: dict):
+
+        self.item_collection.delete_many(query)

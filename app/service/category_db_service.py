@@ -50,6 +50,17 @@ class CategoryDBService:
         )
 
 
+    def delete_one(self, item_id: str):
+
+        item = self.item_collection.find_one(
+            {'category_id': item_id},
+            {'_id': 0}
+        )
+        if item:
+            self.item_collection.delete_one(item)
+            return 1
+
+
     def insert_one(self, item: dict):
 
         self.item_collection.insert_one(item)

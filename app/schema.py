@@ -45,7 +45,6 @@ class Product(BaseModel):
     price: float | None = 0
     product_id: str | None = None
     product_name: str | None
-    redeem_points: float | None = 0
     subcategory_id: str | None
     subcategory_name: str | None
 

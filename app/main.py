@@ -1,7 +1,8 @@
-import uuid
-from datetime import datetime
 import os
-from typing import Annotated, List
+import uuid
+
+from datetime import datetime
+from typing import List
 
 import uvicorn
 from fastapi import FastAPI, Form, HTTPException, UploadFile
@@ -98,6 +99,35 @@ def get_category(page: int | None = None, limit: int | None = None):
     )
 
     return paginated_response
+
+
+@app.delete('/category/{id:str}')
+def delete_category(id):
+
+    db_service = CategoryDBService()
+    doc = db_service.find_one_by_id(id)
+    if not doc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f'Category does not exists.'
+        )
+
+    if db_service.delete_one(id):
+        # Delete Subcategory
+        db_service = SubcategoryDBService()
+        db_service.delete_many({'category_id': id})
+
+        # Delete Product
+        db_service = ProductDBService()
+        db_service.delete_many({'category_id': id})
+
+    try:
+        bot_engine = BotEngineUpdate()
+        bot_engine.restart_bot_engine()
+    except Exception as e:
+        logger.error(f'{e}')
+
+    return id
 
 
 @app.post('/inventory', response_model=Inventory)
@@ -296,6 +326,27 @@ def get_product(page: int | None = None, limit: int | None = None):
     return paginated_response
 
 
+@app.delete('/product/{id:str}')
+def delete_product(id):
+
+    db_service = ProductDBService()
+    doc = db_service.find_one_by_id(id)
+    if not doc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f'Product does not exists.'
+        )
+
+    db_service.delete_one(id)
+    try:
+        bot_engine = BotEngineUpdate()
+        bot_engine.restart_bot_engine()
+    except Exception as e:
+        logger.error(f'{e}')
+
+    return id
+
+
 @app.post('/subcategory')
 def create_subcategory(item: Subcategory):
 
@@ -339,7 +390,11 @@ def delete_subcategory(id):
             detail=f'Subcategory does not exists.'
         )
 
-    db_service.delete_one(id)
+    if db_service.delete_one(id):
+        # Delete Product
+        db_service = ProductDBService()
+        db_service.delete_many({'subcategory_id': id})
+
     try:
         bot_engine = BotEngineUpdate()
         bot_engine.restart_bot_engine()
