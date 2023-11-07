@@ -1,0 +1,69 @@
+version: '3.3'
+services:
+  product-sub:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: always
+    ports:
+      - "7999:8000"
+    env_file:
+      - .env
+    container_name: product-sub-cont
+    depends_on:
+      - mongo_storage
+    volumes:
+      - product-bot-media:/app/media
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - product-sub-network
+
+  product-bot:
+    build:
+      context: ../product-bot
+      dockerfile: Dockerfile
+    env_file:
+      - ../product-bot/.env
+    restart: always
+    depends_on:
+      - mongo_storage
+    networks:
+      - product-sub-network
+    container_name: product-bot_container
+
+
+  mongo_storage:
+    image: mongo
+    restart: always
+    ports:
+      - "127.0.0.1:27018:27017"
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=root
+      - MONGO_INITDB_ROOT_PASSWORD=test
+    volumes:
+      - mongo_data:/data/db
+    container_name: mongo-product-sub-cont
+    networks:
+      - product-sub-network
+
+  mongo-express:
+    image: mongo-express
+    restart: always
+    ports:
+      - "127.0.0.1:8084:8081"
+    environment:
+      - ME_CONFIG_MONGODB_ADMINUSERNAME=root
+      - ME_CONFIG_MONGODB_ADMINPASSWORD=test
+      - ME_CONFIG_MONGODB_SERVER=mongo_storage
+    networks:
+      - product-sub-network
+    container_name: mongo-express-product-sub-cont
+
+volumes:
+  product-bot-media:
+  mongo_data:
+    driver: local
+
+networks:
+  product-sub-network:
+    driver: bridge
