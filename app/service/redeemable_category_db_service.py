@@ -1,17 +1,17 @@
 from common.database import get_collection
 
 
-class UserDBService:
+class RedeemableCategoryDBService:
 
     def __init__(self):
 
-        self.item_collection = get_collection('user')
+        self.item_collection = get_collection('redeemable_category')
 
 
     def find_one(self, item_name):
 
         return self.item_collection.find_one(
-            {'user_name': item_name},
+            {'category_name': item_name},
             {'_id': 0}
         )
 
@@ -33,7 +33,7 @@ class UserDBService:
 
         items = []
         item_cursor = self.item_collection.find(
-            {'user_id': {'$in': item_ids}},
+            {'category_id': {'$in': item_ids}},
             {'_id': 0}
         )
         for item in item_cursor:
@@ -45,7 +45,7 @@ class UserDBService:
     def find_one_by_id(self, item_id):
 
         return self.item_collection.find_one(
-            {'user_id': item_id},
+            {'category_id': item_id},
             {'_id': 0}
         )
 
@@ -53,7 +53,7 @@ class UserDBService:
     def delete_one(self, item_id: str):
 
         item = self.item_collection.find_one(
-            {'user_id': item_id},
+            {'category_id': item_id},
             {'_id': 0}
         )
         if item:

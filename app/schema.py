@@ -57,11 +57,61 @@ class ProductResponse(BaseModel):
     total: int
 
 
+class RedeemableCategory(BaseModel):
+
+    category_id: str | None = None
+    category_name: str
+
+
+class RedeemableCategoryResponse(BaseModel):
+
+    result: List[RedeemableCategory]
+    page: int
+    limit: int
+    total: int
+
+
+class RedeemableInventory(BaseModel):
+
+    file_name: str | None
+    file_path: str | None
+    inventory_id: str | None = None
+    product_id: str | None
+    status: str | None
+
+
+class RedeemableProduct(BaseModel):
+
+    category_id: str | None
+    category_name: str | None
+    description: str | None
+    inventory: int | None = 0
+    points: float | None = 0
+    product_id: str | None = None
+    product_name: str | None
+
+
+class RedeemableProductResponse(BaseModel):
+
+    result: List[RedeemableProduct]
+    page: int
+    limit: int
+    total: int
+
+
 class Subcategory(BaseModel):
 
     category_id: str | None = None
     subcategory_id: str | None = None
     subcategory_name: str
+
+
+class User(BaseModel):
+
+    first_name: str | None
+    points: float | None = 0
+    user_id: str | None = None
+    user_name: str | None
 
 
 class CategoryEnum(Enum):

@@ -23,6 +23,11 @@ from schema import (
     Inventory,
     Product,
     ProductResponse,
+    RedeemableCategory,
+    RedeemableCategoryResponse,
+    RedeemableInventory,
+    RedeemableProduct,
+    RedeemableProductResponse,
     Subcategory,
     ItemIn,
     PaginatedItemListResponse,
@@ -32,6 +37,9 @@ from schema import (
 from service.category_db_service import CategoryDBService
 from service.inventory_db_service import InventoryDBService
 from service.product_db_service import ProductDBService
+from service.redeemable_category_db_service import RedeemableCategoryDBService
+from service.redeemable_inventory_db_service import RedeemableInventoryDBService
+from service.redeemable_product_db_service import RedeemableProductDBService
 from service.subcategory_db_service import SubcategoryDBService
 
 from service.file_writer_service import FileWriter
@@ -170,12 +178,10 @@ def delete_inventory(id):
     if db_service.delete_one(id):
         # Update Product
         db_service = ProductDBService()
-        product = db_service.find_one_by_id(doc['product_id'])
-        if product:
-            _product = {
-                'inventory': product['inventory'] - 1
-            }
-            db_service.update_one(doc['product_id'], _product)
+        db_service.find_one_and_update(
+            doc['product_id'],
+            {'$inc': {'inventory': -1}}
+        )
 
         # Delete File
         delete_file(doc['file_path'])
@@ -237,12 +243,10 @@ async def upload_inventory(
 
     # Update Product
     db_service = ProductDBService()
-    product = db_service.find_one_by_id(product_id)
-    if product:
-        _product = {
-            'inventory': product['inventory'] + len(files)
-        }
-        db_service.update_one(product_id, _product)
+    db_service.find_one_and_update(
+        product_id,
+        {'$inc': {'inventory': len(files)}}
+    )
 
     try:
         bot_engine = BotEngineUpdate()
@@ -330,6 +334,273 @@ def get_product(page: int | None = None, limit: int | None = None):
 def delete_product(id):
 
     db_service = ProductDBService()
+    doc = db_service.find_one_by_id(id)
+    if not doc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f'Product does not exists.'
+        )
+
+    db_service.delete_one(id)
+    try:
+        bot_engine = BotEngineUpdate()
+        bot_engine.restart_bot_engine()
+    except Exception as e:
+        logger.error(f'{e}')
+
+    return id
+
+
+@app.post('/redeemable-category', response_model=RedeemableCategory)
+async def create_redeemable_category(item: RedeemableCategory):
+
+    db_service = RedeemableCategoryDBService()
+    doc = db_service.find_one(item.category_name)
+    if doc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f'Category Name {item.category_name} already exists.'
+        )
+
+    item.category_id = str(uuid.uuid4().hex)
+    item_dict = item.model_dump()
+    db_service.insert_one(item_dict)
+    try:
+        bot_engine = BotEngineUpdate()
+        bot_engine.restart_bot_engine()
+    except Exception as e:
+        logger.error(f'{e}')
+
+    return item
+
+
+@app.get('/redeemable-category')
+def get_redeemable_category(page: int | None = None, limit: int | None = None):
+
+    page = 1 if page and page < 1 else page
+
+    db_service = RedeemableCategoryDBService()
+    docs, doc_count = db_service.find_all(page, limit)
+    if page and limit:
+        limit = doc_count
+
+    paginated_response = RedeemableCategoryResponse(
+        result=docs,
+        page=page,
+        limit=limit,
+        total=doc_count
+    )
+
+    return paginated_response
+
+
+@app.delete('/redeemable-category/{id:str}')
+def delete_redeemable_category(id):
+
+    db_service = RedeemableCategoryDBService()
+    doc = db_service.find_one_by_id(id)
+    if not doc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f'Category does not exists.'
+        )
+
+    if db_service.delete_one(id):
+        # Delete Product
+        db_service = RedeemableProductDBService()
+        db_service.delete_many({'category_id': id})
+
+    try:
+        bot_engine = BotEngineUpdate()
+        bot_engine.restart_bot_engine()
+    except Exception as e:
+        logger.error(f'{e}')
+
+    return id
+
+
+@app.post('/redeemable-inventory', response_model=RedeemableInventory)
+async def create_redeemable_inventory(item: RedeemableInventory):
+
+    db_service = RedeemableInventoryDBService()
+
+    item.inventory_id = str(uuid.uuid4().hex)
+    item_dict = item.model_dump()
+    db_service.insert_one(item_dict)
+    try:
+        bot_engine = BotEngineUpdate()
+        bot_engine.restart_bot_engine()
+    except Exception as e:
+        logger.error(f'{e}')
+
+    return item
+
+
+@app.get('/redeemable-inventory/{id:str}')
+def get_redeemable_inventory_by_product_id(id):
+
+    db_service = RedeemableInventoryDBService()
+    docs, doc_count = db_service.find_all(id)
+
+    return docs
+
+
+@app.delete('/redeemable-inventory/{id:str}')
+def delete_redeemable_inventory(id):
+
+    db_service = RedeemableInventoryDBService()
+    doc = db_service.find_one_by_id(id)
+    if not doc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f'Inventory does not exists.'
+        )
+
+    if db_service.delete_one(id):
+        # Update Redeemable Product
+        db_service = RedeemableProductDBService()
+        db_service.find_one_and_update(
+            doc['product_id'],
+            {'$inc': {'inventory': -1}}
+        )
+
+        # Delete File
+        delete_file(doc['file_path'])
+
+    try:
+        bot_engine = BotEngineUpdate()
+        bot_engine.restart_bot_engine()
+    except Exception as e:
+        logger.error(f'{e}')
+
+    return id
+
+
+@app.get('/redeemable-inventory-download/{id:str}')
+def  download_redeemable_inventory(id):
+
+    db_service = RedeemableInventoryDBService()
+    doc = db_service.find_one_by_id(id)
+    if not doc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f'File does not exists.'
+        )
+
+    return FileResponse(
+        doc['file_path'],
+        media_type='text/plain',
+        filename=doc['file_name']
+    )
+
+
+@app.post('/redeemable-inventory-upload/{product_id:str}', response_model=BaseResponse)
+async def upload_redeemable_inventory(
+    product_id: str,
+    files: List[UploadFile]
+):
+
+    # Save Files
+    file_writer = FileWriter()
+    file_paths = await file_writer.save(files)
+
+    db_service = RedeemableInventoryDBService()
+
+    # Insert Inventory
+    to_insert = []
+    for i, file in enumerate(files):
+        item = RedeemableInventory(
+            file_name=file.filename,
+            file_path=file_paths[i],
+            inventory_id=str(uuid.uuid4().hex),
+            product_id=product_id,
+            status='New'
+        )
+        item_dict = item.model_dump()
+        to_insert.append(item_dict)
+
+    if to_insert:
+        db_service.insert_many(to_insert)
+
+    # Update Redeemable Product
+    db_service = RedeemableProductDBService()
+    db_service.find_one_and_update(
+        product_id,
+        {'$inc': {'inventory': len(files)}}
+    )
+
+    try:
+        bot_engine = BotEngineUpdate()
+        bot_engine.restart_bot_engine()
+    except Exception as e:
+        logger.error(f'{e}')
+
+    return BaseResponse(
+        message='Files successfully uploaded.',
+        status=200
+    )
+
+
+@app.post('/redeemable-product', response_model=RedeemableProduct)
+async def create_redeemable_product(item: RedeemableProduct):
+
+    # Get Category
+    db_service = RedeemableCategoryDBService()
+    category = db_service.find_one(item.category_name)
+    if not category:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f'Category Name {item.category_name} does not exists.'
+        )
+
+    db_service = RedeemableProductDBService()
+    doc = db_service.find_one(
+        category['category_id'],
+        item.product_name
+    )
+    if doc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f'Product Name {item.product_name} already exists.'
+        )
+
+    item.category_id = category['category_id']
+    item.product_id = str(uuid.uuid4().hex)
+    item_dict = item.model_dump()
+    db_service.insert_one(item_dict)
+    try:
+        bot_engine = BotEngineUpdate()
+        bot_engine.restart_bot_engine()
+    except Exception as e:
+        logger.error(f'{e}')
+
+    return item
+
+
+@app.get('/redeemable-product')
+def get_redeemable_product(page: int | None = None, limit: int | None = None):
+
+    page = 1 if page and page < 1 else page
+
+    db_service = RedeemableProductDBService()
+    docs, doc_count = db_service.find_all(page, limit)
+    if page and limit:
+        limit = doc_count
+
+    paginated_response = RedeemableProductResponse(
+        result=docs,
+        page=page,
+        limit=limit,
+        total=doc_count
+    )
+
+    return paginated_response
+
+
+@app.delete('/redeemable-product/{id:str}')
+def delete_redeemable_product(id):
+
+    db_service = RedeemableProductDBService()
     doc = db_service.find_one_by_id(id)
     if not doc:
         raise HTTPException(

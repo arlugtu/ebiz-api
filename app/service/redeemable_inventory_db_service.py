@@ -1,24 +1,32 @@
 from common.database import get_collection
 
 
-class UserDBService:
+class RedeemableInventoryDBService:
 
     def __init__(self):
 
-        self.item_collection = get_collection('user')
+        self.item_collection = get_collection('redeemable_inventory')
 
 
-    def find_one(self, item_name):
+    def find_one(self, product_id):
 
         return self.item_collection.find_one(
-            {'user_name': item_name},
+            {'product_id': product_id},
             {'_id': 0}
         )
 
 
-    def find_all(self, page: int | None, limit: int | None):
+    def find_all(
+        self,
+        product_id,
+        page: int | None = None,
+        limit: int | None = None
+    ):
 
-        item_cursor = self.item_collection.find({}, {'_id': 0})
+        item_cursor = self.item_collection.find(
+            {'product_id': product_id},
+            {'_id': 0}
+        )
         if limit and page:
             skip = (page - 1) * limit
             item_cursor = item_cursor.skip(skip).limit(limit)
@@ -33,7 +41,7 @@ class UserDBService:
 
         items = []
         item_cursor = self.item_collection.find(
-            {'user_id': {'$in': item_ids}},
+            {'inventory_id': {'$in': item_ids}},
             {'_id': 0}
         )
         for item in item_cursor:
@@ -45,22 +53,27 @@ class UserDBService:
     def find_one_by_id(self, item_id):
 
         return self.item_collection.find_one(
-            {'user_id': item_id},
+            {'inventory_id': item_id},
             {'_id': 0}
         )
 
 
-    def delete_one(self, item_id: str):
+    def insert_many(self, items: list):
 
-        item = self.item_collection.find_one(
-            {'user_id': item_id},
-            {'_id': 0}
-        )
-        if item:
-            self.item_collection.delete_one(item)
-            return 1
+        self.item_collection.insert_many(items)
 
 
     def insert_one(self, item: dict):
 
         self.item_collection.insert_one(item)
+
+
+    def delete_one(self, item_id: str):
+
+        item = self.item_collection.find_one(
+            {'inventory_id': item_id},
+            {'_id': 0}
+        )
+        if item:
+            self.item_collection.delete_one(item)
+            return 1

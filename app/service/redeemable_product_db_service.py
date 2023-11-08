@@ -1,20 +1,19 @@
 from common.database import get_collection
 
 
-class ProductDBService:
+class RedeemableProductDBService:
 
     def __init__(self):
 
-        self.item_collection = get_collection('product')
+        self.item_collection = get_collection('redeemable_product')
 
 
-    def find_one(self, category_id, subcategory_id, item_name):
+    def find_one(self, category_id, item_name):
 
         return self.item_collection.find_one(
             {
                 'category_id': category_id,
-                'product_name': item_name,
-                'subcategory_id': subcategory_id,
+                'product_name': item_name
             },
             {'_id': 0}
         )
@@ -37,18 +36,6 @@ class ProductDBService:
 
         item_cursor = self.item_collection.find(
             {'category_id': category_id},
-            {'_id': 0}
-        )
-
-        item_list = [item for item in item_cursor]
-
-        return item_list
-
-
-    def find_all_by_subcategory_id(self, subcategory_id):
-
-        item_cursor = self.item_collection.find(
-            {'subcategory_id': subcategory_id},
             {'_id': 0}
         )
 
