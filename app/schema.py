@@ -33,6 +33,7 @@ class Inventory(BaseModel):
     inventory_id: str | None = None
     product_id: str | None
     status: str | None
+    trackId: str | None = None
 
 
 class Product(BaseModel):
@@ -104,6 +105,19 @@ class Subcategory(BaseModel):
     category_id: str | None = None
     subcategory_id: str | None = None
     subcategory_name: str
+
+
+class Transaction(BaseModel):
+
+    amount: float | None = 0
+    chat_id: int | None
+    points: float | None = 0
+    product_id: str | None
+    quantity: float | None = 0
+    status: str | None
+    trackId: str | None
+    txID: str | None
+    user_id: str | None = None
 
 
 class User(BaseModel):

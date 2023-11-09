@@ -1,21 +1,17 @@
 import os
 import uuid
 
-from datetime import datetime
 from typing import List
 
 import uvicorn
-from fastapi import FastAPI, Form, HTTPException, UploadFile
+from fastapi import FastAPI, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import (CORSMiddleware)
-from pymongo import UpdateMany
 from starlette import status
 from starlette.responses import FileResponse
 from starlette.staticfiles import StaticFiles
 
-from bot_engine import BotEngineUpdate
 from common.configs import SELF_DOMAIN
 from common.logger import module_logger
-from payment_handler import PaymentHandler
 from schema import (
     BaseResponse,
     Category,
@@ -28,24 +24,19 @@ from schema import (
     RedeemableInventory,
     RedeemableProduct,
     RedeemableProductResponse,
-    Subcategory,
-    ItemIn,
-    PaginatedItemListResponse,
-    Relationship,
-    ResModel
+    Subcategory
 )
 from service.category_db_service import CategoryDBService
+from service.file_writer_service import FileWriter
 from service.inventory_db_service import InventoryDBService
 from service.product_db_service import ProductDBService
 from service.redeemable_category_db_service import RedeemableCategoryDBService
 from service.redeemable_inventory_db_service import RedeemableInventoryDBService
 from service.redeemable_product_db_service import RedeemableProductDBService
 from service.subcategory_db_service import SubcategoryDBService
-
-from service.file_writer_service import FileWriter
-from service.graph_service import GraphService
-from service.item_file_path_db_service import ItemFileDBService
-from service.relationship_db_service import RelationshipDBService
+from service.telegram_service import TelegramMessageService
+from service.transaction_db_service import TransactionDBService
+from service.user_db_service import UserDBService
 
 app = FastAPI()
 app.mount("/media", StaticFiles(directory="media"), name="media")
@@ -73,11 +64,6 @@ async def create_category(item: Category):
     item.category_id = str(uuid.uuid4().hex)
     item_dict = item.model_dump()
     db_service.insert_one(item_dict)
-    try:
-        bot_engine = BotEngineUpdate()
-        bot_engine.restart_bot_engine()
-    except Exception as e:
-        logger.error(f'{e}')
 
     return item
 
@@ -129,12 +115,6 @@ def delete_category(id):
         db_service = ProductDBService()
         db_service.delete_many({'category_id': id})
 
-    try:
-        bot_engine = BotEngineUpdate()
-        bot_engine.restart_bot_engine()
-    except Exception as e:
-        logger.error(f'{e}')
-
     return id
 
 
@@ -146,11 +126,6 @@ async def create_inventory(item: Inventory):
     item.inventory_id = str(uuid.uuid4().hex)
     item_dict = item.model_dump()
     db_service.insert_one(item_dict)
-    try:
-        bot_engine = BotEngineUpdate()
-        bot_engine.restart_bot_engine()
-    except Exception as e:
-        logger.error(f'{e}')
 
     return item
 
@@ -167,6 +142,8 @@ def get_inventory_by_product_id(id):
 @app.delete('/inventory/{id:str}')
 def delete_inventory(id):
 
+    _return = {'status': 200}
+
     db_service = InventoryDBService()
     doc = db_service.find_one_by_id(id)
     if not doc:
@@ -176,23 +153,21 @@ def delete_inventory(id):
         )
 
     if db_service.delete_one(id):
-        # Update Product
-        db_service = ProductDBService()
-        db_service.find_one_and_update(
-            doc['product_id'],
-            {'$inc': {'inventory': -1}}
-        )
-
         # Delete File
         delete_file(doc['file_path'])
 
-    try:
-        bot_engine = BotEngineUpdate()
-        bot_engine.restart_bot_engine()
-    except Exception as e:
-        logger.error(f'{e}')
+        if doc['status'] == 'New':
+            # Update Product
+            db_service = ProductDBService()
+            product = db_service.find_one_and_update(
+                doc['product_id'],
+                {'$inc': {'inventory': -1}}
+            )
+            _return['inventory'] = product['inventory']
 
-    return id
+    _return['message'] = 'Inventory successfully deleted.'
+
+    return _return
 
 
 @app.get('/inventory-download/{id:str}')
@@ -213,7 +188,7 @@ def  download_inventory(id):
     )
 
 
-@app.post('/inventory-upload/{product_id:str}', response_model=BaseResponse)
+@app.post('/inventory-upload/{product_id:str}')
 async def upload_inventory(
     product_id: str,
     files: List[UploadFile]
@@ -243,21 +218,72 @@ async def upload_inventory(
 
     # Update Product
     db_service = ProductDBService()
-    db_service.find_one_and_update(
+    product = db_service.find_one_and_update(
         product_id,
         {'$inc': {'inventory': len(files)}}
     )
 
-    try:
-        bot_engine = BotEngineUpdate()
-        bot_engine.restart_bot_engine()
-    except Exception as e:
-        logger.error(f'{e}')
+    return {
+        'inventory': product['inventory'],
+        'message': 'Files successfully uploaded.',
+        'status': 200
+    }
 
-    return BaseResponse(
-        message='Files successfully uploaded.',
-        status=200
-    )
+
+@app.post('/payment')
+async def create_payment(request: Request):
+
+    data = await request.json()
+
+    status = data.get('status')
+    track_id = data.get('trackId')
+
+    db_service = TransactionDBService()
+
+    try:
+        # Update Transaction
+        tx = db_service.find_one_and_update(
+            track_id,
+            {'$set': {'status': status}}
+        )
+
+        # Update User
+        if (
+            status == 'Paid'
+            and tx.get('status') != 'Paid'
+            and tx.get('user_id')
+        ):
+            db_service = UserDBService()
+            db_service.find_one_and_update(
+                tx['user_id'],
+                {'$inc': {'points': tx['points']}}
+            )
+
+            service = TelegramMessageService(tx['chat_id'])
+
+            # Get Inventory
+            db_service = InventoryDBService()
+            items, doc_count = db_service.find_all(track_id, key='trackId')
+            files = {d['inventory_id']: d['file_path'] for d in items}
+
+            # Update Inventory
+            if files:
+                db_service.update_many(
+                    {'inventory_id': {'$in': list(files.keys())}},
+                    {'$set': {'status': 'Sold'}}
+                )
+
+            await service.send_document(files.values())
+
+            message = ''
+            if tx['points']:
+                message = f" and you earned {tx['points']} points"
+
+            message = f"Your payment to {tx['address']} is successful{message}."
+
+            await service.send_message(message)
+    except:
+        pass
 
 
 @app.post('/product', response_model=Product)
@@ -301,11 +327,6 @@ async def create_product(item: Product):
     item.subcategory_id = subcategory['subcategory_id']
     item_dict = item.model_dump()
     db_service.insert_one(item_dict)
-    try:
-        bot_engine = BotEngineUpdate()
-        bot_engine.restart_bot_engine()
-    except Exception as e:
-        logger.error(f'{e}')
 
     return item
 
@@ -330,6 +351,27 @@ def get_product(page: int | None = None, limit: int | None = None):
     return paginated_response
 
 
+@app.get('/product/{id:str}')
+def get_product_by_id(id):
+
+    db_service = ProductDBService()
+    doc = db_service.find_one_by_id(id)
+
+    return doc
+
+
+@app.put('/product/{id:str}')
+async def update_product(id, request: Request):
+
+    data = await request.json()
+
+    keys = ('description', 'points', 'price', 'product_name')
+    to_update = {k: data.get(k) for k in keys}
+
+    db_service = ProductDBService()
+    db_service.find_one_and_update(id, {'$set': to_update})
+
+
 @app.delete('/product/{id:str}')
 def delete_product(id):
 
@@ -342,11 +384,6 @@ def delete_product(id):
         )
 
     db_service.delete_one(id)
-    try:
-        bot_engine = BotEngineUpdate()
-        bot_engine.restart_bot_engine()
-    except Exception as e:
-        logger.error(f'{e}')
 
     return id
 
@@ -365,11 +402,6 @@ async def create_redeemable_category(item: RedeemableCategory):
     item.category_id = str(uuid.uuid4().hex)
     item_dict = item.model_dump()
     db_service.insert_one(item_dict)
-    try:
-        bot_engine = BotEngineUpdate()
-        bot_engine.restart_bot_engine()
-    except Exception as e:
-        logger.error(f'{e}')
 
     return item
 
@@ -410,12 +442,6 @@ def delete_redeemable_category(id):
         db_service = RedeemableProductDBService()
         db_service.delete_many({'category_id': id})
 
-    try:
-        bot_engine = BotEngineUpdate()
-        bot_engine.restart_bot_engine()
-    except Exception as e:
-        logger.error(f'{e}')
-
     return id
 
 
@@ -427,11 +453,6 @@ async def create_redeemable_inventory(item: RedeemableInventory):
     item.inventory_id = str(uuid.uuid4().hex)
     item_dict = item.model_dump()
     db_service.insert_one(item_dict)
-    try:
-        bot_engine = BotEngineUpdate()
-        bot_engine.restart_bot_engine()
-    except Exception as e:
-        logger.error(f'{e}')
 
     return item
 
@@ -448,6 +469,8 @@ def get_redeemable_inventory_by_product_id(id):
 @app.delete('/redeemable-inventory/{id:str}')
 def delete_redeemable_inventory(id):
 
+    _return = {'status': 200}
+
     db_service = RedeemableInventoryDBService()
     doc = db_service.find_one_by_id(id)
     if not doc:
@@ -457,23 +480,22 @@ def delete_redeemable_inventory(id):
         )
 
     if db_service.delete_one(id):
-        # Update Redeemable Product
-        db_service = RedeemableProductDBService()
-        db_service.find_one_and_update(
-            doc['product_id'],
-            {'$inc': {'inventory': -1}}
-        )
-
         # Delete File
         delete_file(doc['file_path'])
 
-    try:
-        bot_engine = BotEngineUpdate()
-        bot_engine.restart_bot_engine()
-    except Exception as e:
-        logger.error(f'{e}')
+        if doc['status'] == 'New':
+            # Update Redeemable Product
+            db_service = RedeemableProductDBService()
+            product = db_service.find_one_and_update(
+                doc['product_id'],
+                {'$inc': {'inventory': -1}}
+            )
+            if product:
+                _return['inventory'] = product['inventory']
 
-    return id
+    _return['message'] = 'Inventory successfully deleted.'
+
+    return _return
 
 
 @app.get('/redeemable-inventory-download/{id:str}')
@@ -494,7 +516,7 @@ def  download_redeemable_inventory(id):
     )
 
 
-@app.post('/redeemable-inventory-upload/{product_id:str}', response_model=BaseResponse)
+@app.post('/redeemable-inventory-upload/{product_id:str}')
 async def upload_redeemable_inventory(
     product_id: str,
     files: List[UploadFile]
@@ -524,21 +546,16 @@ async def upload_redeemable_inventory(
 
     # Update Redeemable Product
     db_service = RedeemableProductDBService()
-    db_service.find_one_and_update(
+    product = db_service.find_one_and_update(
         product_id,
         {'$inc': {'inventory': len(files)}}
     )
 
-    try:
-        bot_engine = BotEngineUpdate()
-        bot_engine.restart_bot_engine()
-    except Exception as e:
-        logger.error(f'{e}')
-
-    return BaseResponse(
-        message='Files successfully uploaded.',
-        status=200
-    )
+    return {
+        'inventory': product['inventory'],
+        'message': 'Files successfully uploaded.',
+        'status': 200
+    }
 
 
 @app.post('/redeemable-product', response_model=RedeemableProduct)
@@ -568,11 +585,6 @@ async def create_redeemable_product(item: RedeemableProduct):
     item.product_id = str(uuid.uuid4().hex)
     item_dict = item.model_dump()
     db_service.insert_one(item_dict)
-    try:
-        bot_engine = BotEngineUpdate()
-        bot_engine.restart_bot_engine()
-    except Exception as e:
-        logger.error(f'{e}')
 
     return item
 
@@ -597,6 +609,27 @@ def get_redeemable_product(page: int | None = None, limit: int | None = None):
     return paginated_response
 
 
+@app.get('/redeemable-product/{id:str}')
+def get_redeemable_product_by_id(id):
+
+    db_service = RedeemableProductDBService()
+    doc = db_service.find_one_by_id(id)
+
+    return doc
+
+
+@app.put('/redeemable-product/{id:str}')
+async def update_redeemable_product(id, request: Request):
+
+    data = await request.json()
+
+    keys = ('description', 'points', 'product_name')
+    to_update = {k: data.get(k) for k in keys}
+
+    db_service = RedeemableProductDBService()
+    db_service.find_one_and_update(id, {'$set': to_update})
+
+
 @app.delete('/redeemable-product/{id:str}')
 def delete_redeemable_product(id):
 
@@ -609,11 +642,6 @@ def delete_redeemable_product(id):
         )
 
     db_service.delete_one(id)
-    try:
-        bot_engine = BotEngineUpdate()
-        bot_engine.restart_bot_engine()
-    except Exception as e:
-        logger.error(f'{e}')
 
     return id
 
@@ -632,11 +660,6 @@ def create_subcategory(item: Subcategory):
     item.subcategory_id = str(uuid.uuid4().hex)
     item_dict = item.model_dump()
     db_service.insert_one(item_dict)
-    try:
-        bot_engine = BotEngineUpdate()
-        bot_engine.restart_bot_engine()
-    except Exception as e:
-        logger.error(f'{e}')
 
     return item
 
@@ -666,12 +689,6 @@ def delete_subcategory(id):
         db_service = ProductDBService()
         db_service.delete_many({'subcategory_id': id})
 
-    try:
-        bot_engine = BotEngineUpdate()
-        bot_engine.restart_bot_engine()
-    except Exception as e:
-        logger.error(f'{e}')
-
     return id
 
 
@@ -681,134 +698,6 @@ def delete_file(file_path):
         os.remove(file_path)
     except:
         pass
-
-
-'''
-@app.post("/bulk-upload")
-async def bulk_image_upload(
-        files: List[UploadFile],
-        item_ids: List[str] = Form(...)
-):
-
-    if len(item_ids) != len(files):
-        raise HTTPException(status_code=400, detail="Number of sub-category IDs and files must match.")
-
-    uploaded_files_list = []
-    file_writer = FileWriter()
-    file_paths = await file_writer.save(files)
-    logger.debug(f'File Paths {file_paths}')
-
-    update_operations = []
-    for item_id, file_path in zip(item_ids, file_paths):
-        uploaded_files_list.append({"item_id": item_id, "location": f'{SELF_DOMAIN}{file_path}'})
-        filter_query = {"item_id": item_id}
-        update_operation = {
-            "$set": {"location": file_path}
-        }
-        update_operations.append(UpdateMany(filter_query, update_operation))
-
-    item_file_db_service = ItemFileDBService()
-    item_file_db_service.update_many_files(update_operations)
-
-    return {"message": "Bulk image upload successful", "uploaded_files": uploaded_files_list}
-
-
-@app.get('/products')
-def get_all_products(page: int | None = None, limit: int | None = None):
-
-    logger.info('Get all product process started')
-    item_db_service = ItemDBService()
-    products, doc_count = item_db_service.find_all_products(page, limit)
-    if page is None and limit is None:
-        page = 1
-        limit = doc_count
-
-    paginated_response = PaginatedItemListResponse(result=products, page=page, limit=limit, total=doc_count)
-    logger.info('Get all product process completed')
-
-    return paginated_response
-
-
-@app.get('/subcategories/{parent_id}')
-def get_all_subcategories(parent_id, page: int | None = None, limit: int | None = None):
-
-    relationship_db_service = RelationshipDBService()
-    children_list = relationship_db_service.get_children(parent_id)
-    item_db_service = ItemDBService()
-
-    return item_db_service.find_from_ids(children_list)
-
-
-@app.post('/relationship')
-def add_one_relationship(relationship: Relationship):
-
-    item_db_service = ItemDBService()
-    item_db_service.update_has_children(relationship.parent_id, True)
-    relationship_db_service = RelationshipDBService()
-
-    return relationship_db_service.add_relationship(relationship)
-
-
-@app.post('/{item_id}', response_model=ResModel)
-async def add_file_inventory_for_item(
-        item_id: str,
-        file: UploadFile,
-):
-
-    file_writer = FileWriter()
-    path = await file_writer.save_single(file)
-    data = {
-        'item_id': item_id,
-        'purchased': False,
-        'location': path
-    }
-    logger.debug(f'Sub Data {data}')
-    item_file_db_service = ItemFileDBService()
-    item_file_db_service.insert_file_data(data)
-    data['location'] = f"{SELF_DOMAIN}{data['location']}"
-    item_db_service = ItemDBService()
-    item_db_service.update_inventory(item_id, 1)
-    try:
-        bot_engine = BotEngineUpdate()
-        bot_engine.restart_bot_engine()
-    except Exception as ex:
-        logger.error(f'{ex}')
-
-    return data
-
-
-@app.post("/payment/handler")
-async def receive_webhook_data(data: dict):
-
-    logger.debug(f'Payment Data: {data}')
-    payment_handler = PaymentHandler()
-    payment_handler.handle_payment(data)
-
-    return data
-
-
-@app.post("/item/media")
-async def add_media_file_to_item(
-        item_id: str,
-        file: UploadFile,
-):
-
-    print(item_id)
-    file_writer = FileWriter()
-    file_path, file_type = await file_writer.save_media_get_details(file)
-    item_db_service = ItemDBService()
-
-    return item_db_service.update_media_details(item_id, file_path, file_type)
-
-
-@app.get("/graph")
-async def get_graph():
-
-    graph_service = GraphService()
-    graph = graph_service.create_graph()
-
-    return graph
-'''
 
 
 if __name__ == '__main__':

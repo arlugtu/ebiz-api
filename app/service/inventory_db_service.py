@@ -18,13 +18,14 @@ class InventoryDBService:
 
     def find_all(
         self,
-        product_id,
+        id,
         page: int | None = None,
-        limit: int | None = None
+        limit: int | None = None,
+        key: str | None ='product_id'
     ):
 
         item_cursor = self.item_collection.find(
-            {'product_id': product_id},
+            {key: id},
             {'_id': 0}
         )
         if limit and page:
@@ -66,6 +67,11 @@ class InventoryDBService:
     def insert_one(self, item: dict):
 
         self.item_collection.insert_one(item)
+
+
+    def update_many(self, query: dict, data: dict):
+
+        self.item_collection.update_many(query, data)
 
 
     def delete_one(self, item_id: str):

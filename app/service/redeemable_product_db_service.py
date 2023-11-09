@@ -1,4 +1,5 @@
 from common.database import get_collection
+from pymongo.collection import ReturnDocument
 
 
 class RedeemableProductDBService:
@@ -69,7 +70,8 @@ class RedeemableProductDBService:
 
         return self.item_collection.find_one_and_update(
             {'product_id': item_id},
-            query
+            query,
+            return_document=ReturnDocument.AFTER
         )
 
 

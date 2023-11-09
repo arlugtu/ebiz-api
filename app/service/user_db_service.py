@@ -50,6 +50,14 @@ class UserDBService:
         )
 
 
+    def find_one_and_update(self, item_id, query):
+
+        return self.item_collection.find_one_and_update(
+            {'user_id': item_id},
+            query
+        )
+
+
     def delete_one(self, item_id: str):
 
         item = self.item_collection.find_one(
