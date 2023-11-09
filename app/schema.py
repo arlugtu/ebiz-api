@@ -79,6 +79,7 @@ class RedeemableInventory(BaseModel):
     inventory_id: str | None = None
     product_id: str | None
     status: str | None
+    transaction_id: str | None = None
 
 
 class RedeemableProduct(BaseModel):
@@ -126,40 +127,3 @@ class User(BaseModel):
     points: float | None = 0
     user_id: str | None = None
     user_name: str | None
-
-
-class CategoryEnum(Enum):
-    product = 'product'
-    sub_category = 'subcategory'
-    point = 'point'
-
-
-class ItemIn(BaseModel):
-    item_id: str | None = None
-    item_name: str
-    item_description: str
-    points: float
-    redeem_points: float
-    inventory: int
-    price: float
-    category: CategoryEnum
-    created_date: str | datetime | None = None
-    has_children: bool = False
-
-
-class PaginatedItemListResponse(BaseModel):
-    result: List[ItemIn]
-    page: int
-    limit: int
-    total: int
-
-
-class Relationship(BaseModel):
-    parent_id: str
-    child_id: str
-
-
-class ResModel(BaseModel):
-    item_id: str
-    purchased: bool
-    location: str

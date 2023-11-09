@@ -33,6 +33,9 @@ from service.product_db_service import ProductDBService
 from service.redeemable_category_db_service import RedeemableCategoryDBService
 from service.redeemable_inventory_db_service import RedeemableInventoryDBService
 from service.redeemable_product_db_service import RedeemableProductDBService
+from service.redeemable_transaction_db_service import (
+    RedeemableTransactionDBService
+)
 from service.subcategory_db_service import SubcategoryDBService
 from service.telegram_service import TelegramMessageService
 from service.transaction_db_service import TransactionDBService
@@ -644,6 +647,26 @@ def delete_redeemable_product(id):
     db_service.delete_one(id)
 
     return id
+
+
+@app.post('/redeemable-transaction/{id:str}')
+async def create_redeemable_transaction(id):
+
+    db_service = RedeemableTransactionDBService()
+    doc = db_service.find_one_by_id(id)
+    if not doc:
+        return
+
+    db_service = RedeemableInventoryDBService()
+
+    service = TelegramMessageService(doc['chat_id'])
+
+
+    # Get Redeemable Inventory
+    items, doc_count = db_service.find_all(id, key='transaction_id')
+    files = {d['inventory_id']: d['file_path'] for d in items}
+
+    await service.send_document(files.values())
 
 
 @app.post('/subcategory')

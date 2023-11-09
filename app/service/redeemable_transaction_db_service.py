@@ -1,16 +1,19 @@
 from common.database import get_collection
 
 
-class TransactionDBService:
+class RedeemableTransactionDBService:
 
     def __init__(self):
 
-        self.item_collection = get_collection('transaction')
+        self.item_collection = get_collection('redeemable_transaction')
 
 
     def find_one(self, tx_id):
 
-        return self.item_collection.find_one({'tx_id': tx_id}, {'_id': 0})
+        return self.item_collection.find_one(
+            {'transaction_id': tx_id},
+            {'_id': 0}
+        )
 
 
     def find_all(self, page: int | None = None, limit: int | None = None):
@@ -30,7 +33,7 @@ class TransactionDBService:
 
         items = []
         item_cursor = self.item_collection.find(
-            {'trackId': {'$in': item_ids}},
+            {'transaction_id': {'$in': item_ids}},
             {'_id': 0}
         )
         for item in item_cursor:
@@ -42,7 +45,7 @@ class TransactionDBService:
     def find_one_by_id(self, item_id):
 
         return self.item_collection.find_one(
-            {'trackId': item_id},
+            {'transaction_id': item_id},
             {'_id': 0}
         )
 
@@ -50,7 +53,7 @@ class TransactionDBService:
     def find_one_and_update(self, item_id, query):
 
         return self.item_collection.find_one_and_update(
-            {'trackId': item_id},
+            {'transaction_id': item_id},
             query
         )
 
@@ -63,7 +66,7 @@ class TransactionDBService:
     def delete_one(self, item_id: str):
 
         item = self.item_collection.find_one(
-            {'trackId': item_id},
+            {'transaction_id': item_id},
             {'_id': 0}
         )
         if item:
