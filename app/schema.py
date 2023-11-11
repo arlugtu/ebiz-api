@@ -1,5 +1,3 @@
-from datetime import datetime
-from enum import Enum
 from typing import List
 
 from pydantic import BaseModel
@@ -7,6 +5,7 @@ from pydantic import BaseModel
 
 class BaseResponse(BaseModel):
 
+    id: str | None = None
     message: str
     status: int
 
@@ -34,6 +33,14 @@ class Inventory(BaseModel):
     product_id: str | None
     status: str | None
     trackId: str | None = None
+
+
+class InventoryResponse(BaseModel):
+
+    result: List[Inventory]
+    page: int
+    limit: int
+    total: int
 
 
 class Product(BaseModel):
@@ -82,6 +89,14 @@ class RedeemableInventory(BaseModel):
     transaction_id: str | None = None
 
 
+class RedeemableInventoryResponse(BaseModel):
+
+    result: List[RedeemableInventory]
+    page: int
+    limit: int
+    total: int
+
+
 class RedeemableProduct(BaseModel):
 
     category_id: str | None
@@ -106,6 +121,14 @@ class Subcategory(BaseModel):
     category_id: str | None = None
     subcategory_id: str | None = None
     subcategory_name: str
+
+
+class SubcategoryResponse(BaseModel):
+
+    result: List[Subcategory]
+    page: int
+    limit: int
+    total: int
 
 
 class Transaction(BaseModel):
