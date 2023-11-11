@@ -20,7 +20,7 @@ from routers import (
     subcategory,
     transaction
 )
-from product_sub_api.app.service.db_service import DBService
+from service.db_service import DBService
 from service.oxapay_service import get_payment_information
 
 app = FastAPI()

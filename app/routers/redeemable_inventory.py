@@ -11,7 +11,7 @@ from schema import (
     RedeemableInventory,
     RedeemableInventoryResponse
 )
-from product_sub_api.app.service.db_service import DBService
+from service.db_service import DBService
 from service.file_writer_service import FileWriter
 
 

@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 
 from schema import BaseResponse
-from product_sub_api.app.service.db_service import DBService
+from service.db_service import DBService
 from service.telegram_service import TelegramMessageService
 
 

@@ -8,7 +8,7 @@ from typing import List
 
 from common.common import delete_file
 from schema import BaseResponse, Inventory, InventoryResponse
-from product_sub_api.app.service.db_service import DBService
+from service.db_service import DBService
 from service.file_writer_service import FileWriter
 
 

@@ -4,7 +4,7 @@ from fastapi import APIRouter, HTTPException
 from starlette import status
 
 from schema import BaseResponse, RedeemableCategory, RedeemableCategoryResponse
-from product_sub_api.app.service.db_service import DBService
+from service.db_service import DBService
 
 
 router = APIRouter(
