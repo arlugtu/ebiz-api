@@ -70,9 +70,12 @@ class ProductResponse(BaseModel):
 
 class Promotion(BaseModel):
 
+    address: str | None = ''
     balance: float | None = 0
     code: str | None = None
     date_created: int | None = None
+    payout_amount: int | None = 0
+    payout_id: str | None = None
     promotion_id: str | None = None
     total_payout: float | None = 0
     user_id: int | None

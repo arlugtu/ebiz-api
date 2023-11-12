@@ -12,6 +12,7 @@ from schema import (
     PromotionResponse
 )
 from service.db_service import DBService
+from service.telegram_service import TelegramMessageService
 
 
 router = APIRouter(
@@ -68,6 +69,22 @@ def get_promotion(
         sort_by=-1
     )
 
+    if docs:
+        _docs = {d['user_id']: d for d in docs}
+
+        # Get Promotion Payout requests
+        db_service = DBService('promotion_payout')
+        query = {
+            'status': 'Pending',
+            'user_id': {'$in': list(_docs.keys())}
+        }
+        payout = db_service.find_all(query)
+        for d in payout[0]:
+            _docs[d['user_id']]['payout_amount'] = d['amount']
+            _docs[d['user_id']]['payout_id'] = d['payout_id']
+
+        docs = list(_docs.values())
+
     paginated_response = PromotionResponse(
         result=docs,
         page=page,
@@ -79,7 +96,7 @@ def get_promotion(
 
 
 @router.get('/settings', response_model=dict)
-def get_promo_settings(key: str = None):
+def get_promotion_settings(key: str = None):
 
     db_service = DBService('promotion_settings')
 
@@ -101,7 +118,7 @@ def get_promo_settings(key: str = None):
 
 
 @router.post('/settings', response_model=BaseResponse)
-async def update_promo_settings(request: Request):
+async def update_promotion_settings(request: Request):
 
     db_service = DBService('promotion_settings')
 
@@ -120,6 +137,51 @@ async def update_promo_settings(request: Request):
 
     return BaseResponse(
         message='Settings successfully updated.',
+        status=200
+    )
+
+
+@router.put('/payout/{id:str}', response_model=BaseResponse)
+async def update_promotion_payout(id, request: Request):
+
+    data = await request.json()
+
+    to_update = {'status': data.get('status')}
+
+    db_service = DBService('promotion_payout')
+    query = {'payout_id': id}
+    payout = db_service.find_one_and_update(query, {'$set': to_update})
+
+    # Update Promotion
+    amount = payout.get('amount') or 0
+    message = ''
+    if to_update['status'] == 'Approved':
+        message = 'approved'
+        db_service = DBService('promotion')
+        query = {'user_id': payout['user_id']}
+        db_service.find_one_and_update(
+            query,
+            {
+                '$inc': {
+                    'balance': -amount,
+                    'total_payout': amount
+                }
+            }
+        )
+    elif to_update['status'] == 'Disapproved':
+        message = 'disapproved'
+
+    # Notify User
+    if amount and message and payout.get('user_id'):
+        try:
+            service = TelegramMessageService(payout['user_id'])
+            message = f"Your withdrawal of {amount} USDT has been {message}."
+            await service.send_message(message)
+        except:
+            pass
+
+    return BaseResponse(
+        message='Product successfully updated.',
         status=200
     )
 
