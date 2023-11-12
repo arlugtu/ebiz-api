@@ -48,7 +48,7 @@ async def create_payment(request: Request):
 
             # Get Inventory
             db_service = DBService('inventory')
-            query = {'trackId': track_id}
+            query = {'transaction_id': tx.get('transaction_id')}
             items = db_service.find_all(query)
             files = {d['inventory_id']: d['file_path'] for d in items[0]}
 
@@ -66,8 +66,31 @@ async def create_payment(request: Request):
                 message = f" and you earned {tx['points']} points"
 
             message = f"Your payment to {tx['address']} is successful{message}."
-
             await service.send_message(message)
+
+            # Get Promotion Transaction
+            db_service = DBService('promotion_transaction')
+            query.update({'status': 'New'})
+            transaction = db_service.find_one_and_update(
+                query,
+                {'$set': {'status': 'Paid'}}
+            )
+
+            if transaction and transaction.get('amount'):
+                # Update Promotion
+                db_service = DBService('promotion')
+                query = {'promotion_id': transaction.get('promotion_id')}
+                promotion = db_service.find_one_and_update(
+                    query,
+                    {'$inc': {'balance': transaction['amount']}}
+                )
+
+                # Notify Promoter
+                if promotion:
+                    service = TelegramMessageService(promotion['user_id'])
+                    message = f"You earned {transaction['amount']} USDT"
+                    message += ' from your promotion.'
+                    await service.send_message(message)
     except:
         pass
 

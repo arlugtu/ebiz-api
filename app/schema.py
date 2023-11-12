@@ -14,6 +14,7 @@ class Category(BaseModel):
 
     category_id: str | None = None
     category_name: str
+    date_created: int | None = None
     subcategory: list | None
 
 
@@ -27,6 +28,7 @@ class CategoryResponse(BaseModel):
 
 class Inventory(BaseModel):
 
+    date_created: int | None = None
     file_name: str | None
     file_path: str | None
     inventory_id: str | None = None
@@ -47,6 +49,7 @@ class Product(BaseModel):
 
     category_id: str | None
     category_name: str | None
+    date_created: int | None = None
     description: str | None
     inventory: int | None = 0
     points: float | None = 0
@@ -65,10 +68,43 @@ class ProductResponse(BaseModel):
     total: int
 
 
+class Promotion(BaseModel):
+
+    balance: float | None = 0
+    code: str | None = None
+    date_created: int | None = None
+    promotion_id: str | None = None
+    total_payout: float | None = 0
+    user_id: int | None
+
+
+class PromotionResponse(BaseModel):
+
+    result: List[Promotion]
+    page: int
+    limit: int
+    total: int
+
+
+class PromotionSettings(BaseModel):
+
+    key: str | None = None
+    value: str | int | None = None
+
+
+class PromotionSettingsResponse(BaseModel):
+
+    result: List[PromotionSettings]
+    page: int
+    limit: int
+    total: int
+
+
 class RedeemableCategory(BaseModel):
 
     category_id: str | None = None
     category_name: str
+    date_created: int | None = None
 
 
 class RedeemableCategoryResponse(BaseModel):
@@ -81,6 +117,7 @@ class RedeemableCategoryResponse(BaseModel):
 
 class RedeemableInventory(BaseModel):
 
+    date_created: int | None = None
     file_name: str | None
     file_path: str | None
     inventory_id: str | None = None
@@ -101,6 +138,7 @@ class RedeemableProduct(BaseModel):
 
     category_id: str | None
     category_name: str | None
+    date_created: int | None = None
     description: str | None
     inventory: int | None = 0
     points: float | None = 0
@@ -119,6 +157,7 @@ class RedeemableProductResponse(BaseModel):
 class Subcategory(BaseModel):
 
     category_id: str | None = None
+    date_created: int | None = None
     subcategory_id: str | None = None
     subcategory_name: str
 
@@ -146,6 +185,7 @@ class Transaction(BaseModel):
 
 class User(BaseModel):
 
+    date_created: int | None = None
     first_name: str | None
     points: float | None = 0
     user_id: str | None = None

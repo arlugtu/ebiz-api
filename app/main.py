@@ -13,6 +13,7 @@ from routers import (
     inventory,
     payment,
     product,
+    promotion,
     redeemable_category,
     redeemable_inventory,
     redeemable_product,
@@ -36,6 +37,7 @@ app.include_router(category.router)
 app.include_router(inventory.router)
 app.include_router(payment.router)
 app.include_router(product.router)
+app.include_router(promotion.router)
 app.include_router(redeemable_category.router)
 app.include_router(redeemable_inventory.router)
 app.include_router(redeemable_product.router)
@@ -50,7 +52,6 @@ scheduler = BackgroundScheduler()
 @app.get('/process-transaction')
 def process_transaction():
 
-    print('prodcess_transaction')
     db_service = DBService('transaction')
     timestamp = int(time.time())
     query = {
@@ -71,14 +72,17 @@ def process_transaction():
         info = get_payment_information(d['trackId'])
         if info.get('status') == 'Expired':
             # Update Transaction
-            query = {'trackId': d['trackId']}
+            query = {'transaction_id': d['transaction_id']}
             db_service.find_one_and_update(
                 query,
                 {'$set': {'status': 'Expired'}}
             )
 
             # Update Inventory
-            query = {'status': 'Reserved', 'trackId': d['trackId']}
+            query = {
+                'status': 'Reserved',
+                'transaction_id': d['transaction_id']
+            }
             inventory = inventory_service.update_many(
                 query,
                 {'$set': {'status': 'New'}}

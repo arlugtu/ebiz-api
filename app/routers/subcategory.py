@@ -3,6 +3,7 @@ import uuid
 from fastapi import APIRouter, HTTPException
 from starlette import status
 
+from common.common import get_timestamp
 from schema import BaseResponse, Subcategory, SubcategoryResponse
 from service.db_service import DBService
 
@@ -28,6 +29,7 @@ def create_subcategory(item: Subcategory):
             detail=f'Subcategory name already exists.'
         )
 
+    item.date_created = get_timestamp()
     item.subcategory_id = str(uuid.uuid4().hex)
     db_service.insert_one(item.model_dump())
 
@@ -56,7 +58,12 @@ def get_subcategory(
         query['category_id'] = category_id
 
     page = 1 if page and page < 1 else page
-    docs, doc_count = db_service.find_all(query, page, limit)
+    docs, doc_count = db_service.find_all(
+        query,
+        page,
+        limit,
+        order_by='subcategory_name'
+    )
 
     paginated_response = SubcategoryResponse(
         result=docs,

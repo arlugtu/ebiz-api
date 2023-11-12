@@ -71,6 +71,11 @@ class DBService:
         return self.collection.insert_many(items)
 
 
-    def update_many(self, query: dict, data: dict):
+    def update_one(self, query: dict, data: dict, is_upsert: bool = False):
 
-        return self.collection.update_many(query, data)
+        return self.collection.update_one(query, data, is_upsert)
+
+
+    def update_many(self, query: dict, data: dict, is_upsert: bool = False):
+
+        return self.collection.update_many(query, data, is_upsert)

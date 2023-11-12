@@ -3,6 +3,7 @@ import uuid
 from fastapi import APIRouter, HTTPException, Request
 from starlette import status
 
+from common.common import get_timestamp
 from schema import BaseResponse, Product, ProductResponse
 from service.db_service import DBService
 
@@ -46,6 +47,7 @@ async def create_product(item: Product):
             detail=f'Product name already exists.'
         )
 
+    item.date_created = get_timestamp()
     item.product_id = str(uuid.uuid4().hex)
     db_service.insert_one(item.model_dump())
 
@@ -66,7 +68,12 @@ def get_product(id: str = None, limit: int = 0, page: int = 0):
         query['product_id'] = id
 
     page = 1 if page and page < 1 else page
-    docs, doc_count = db_service.find_all(query, page, limit)
+    docs, doc_count = db_service.find_all(
+        query,
+        page,
+        limit,
+        order_by='product_name'
+    )
 
     paginated_response = ProductResponse(
         result=docs,

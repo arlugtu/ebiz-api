@@ -3,6 +3,7 @@ import uuid
 from fastapi import APIRouter, HTTPException
 from starlette import status
 
+from common.common import get_timestamp
 from schema import BaseResponse, Category, CategoryResponse
 from service.db_service import DBService
 
@@ -26,6 +27,7 @@ async def create_category(item: Category):
         )
 
     item.category_id = str(uuid.uuid4().hex)
+    item.date_created = get_timestamp()
     db_service.insert_one(item.model_dump())
 
     return BaseResponse(
@@ -45,7 +47,12 @@ def get_category(id: str = None, limit: int = 0, page: int = 0):
         query['category_id'] = id
 
     page = 1 if page and page < 1 else page
-    docs, doc_count = db_service.find_all(query, page, limit)
+    docs, doc_count = db_service.find_all(
+        query,
+        page,
+        limit,
+        order_by='category_name'
+    )
 
     # Get Subcategory
     if docs:

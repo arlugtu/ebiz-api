@@ -35,3 +35,30 @@ async def create_redeemable_transaction(id):
         message='Transaction successfully created.',
         status=200
     )
+
+
+
+@router.get('/', response_model=dict)
+def get_reddemable_transaction(id: str = None, limit: int = 0, page: int = 0):
+
+    db_service = DBService('redeemable_transaction')
+
+    query = {}
+    if id:
+        query['transaction_id'] = id
+
+    page = 1 if page and page < 1 else page
+    docs, doc_count = db_service.find_all(
+        query,
+        page,
+        limit,
+        order_by='date_created',
+        sort_by=-1
+    )
+
+    return {
+        'limit': limit,
+        'page': page,
+        'result': docs,
+        'total': doc_count
+    }

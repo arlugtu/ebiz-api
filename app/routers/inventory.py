@@ -6,7 +6,7 @@ from starlette import status
 from starlette.responses import FileResponse
 from typing import List
 
-from common.common import delete_file
+from common.common import delete_file, get_timestamp
 from schema import BaseResponse, Inventory, InventoryResponse
 from service.db_service import DBService
 from service.file_writer_service import FileWriter
@@ -23,6 +23,7 @@ async def create_inventory(item: Inventory):
 
     db_service = DBService('inventory')
 
+    item.date_created = get_timestamp()
     item.inventory_id = str(uuid.uuid4().hex)
     db_service.insert_one(item.model_dump())
 
@@ -51,7 +52,13 @@ def get_inventory(
         query['product_id'] = product_id
 
     page = 1 if page and page < 1 else page
-    docs, doc_count = db_service.find_all(query, page, limit)
+    docs, doc_count = db_service.find_all(
+        query,
+        page,
+        limit,
+        order_by='date_created',
+        sort_by=-1
+    )
 
     paginated_response = InventoryResponse(
         result=docs,
@@ -131,6 +138,7 @@ async def upload_inventory(
     to_insert = []
     for i, file in enumerate(files):
         item = Inventory(
+            date_created=get_timestamp(),
             file_name=file.filename,
             file_path=file_paths[i],
             inventory_id=str(uuid.uuid4().hex),
