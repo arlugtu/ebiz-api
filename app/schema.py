@@ -1,5 +1,3 @@
-from datetime import datetime
-from enum import Enum
 from typing import List
 
 from pydantic import BaseModel
@@ -7,6 +5,7 @@ from pydantic import BaseModel
 
 class BaseResponse(BaseModel):
 
+    id: str | None = None
     message: str
     status: int
 
@@ -15,6 +14,7 @@ class Category(BaseModel):
 
     category_id: str | None = None
     category_name: str
+    date_created: int | None = None
     subcategory: list | None
 
 
@@ -28,24 +28,34 @@ class CategoryResponse(BaseModel):
 
 class Inventory(BaseModel):
 
+    date_created: int | None = None
     file_name: str | None
     file_path: str | None
     inventory_id: str | None = None
     product_id: str | None
     status: str | None
+    trackId: str | None = None
+
+
+class InventoryResponse(BaseModel):
+
+    result: List[Inventory]
+    page: int
+    limit: int
+    total: int
 
 
 class Product(BaseModel):
 
     category_id: str | None
     category_name: str | None
+    date_created: int | None = None
     description: str | None
     inventory: int | None = 0
     points: float | None = 0
     price: float | None = 0
     product_id: str | None = None
     product_name: str | None
-    redeem_points: float | None = 0
     subcategory_id: str | None
     subcategory_name: str | None
 
@@ -58,45 +68,128 @@ class ProductResponse(BaseModel):
     total: int
 
 
-class Subcategory(BaseModel):
+class Promotion(BaseModel):
 
-    category_id: str | None = None
-    subcategory_id: str | None = None
-    subcategory_name: str
-
-
-class CategoryEnum(Enum):
-    product = 'product'
-    sub_category = 'subcategory'
-    point = 'point'
-
-
-class ItemIn(BaseModel):
-    item_id: str | None = None
-    item_name: str
-    item_description: str
-    points: float
-    redeem_points: float
-    inventory: int
-    price: float
-    category: CategoryEnum
-    created_date: str | datetime | None = None
-    has_children: bool = False
+    address: str | None = ''
+    balance: float | None = 0
+    code: str | None = None
+    date_created: int | None = None
+    payout_amount: int | None = 0
+    payout_id: str | None = None
+    promotion_id: str | None = None
+    total_payout: float | None = 0
+    user_id: int | None
 
 
-class PaginatedItemListResponse(BaseModel):
-    result: List[ItemIn]
+class PromotionResponse(BaseModel):
+
+    result: List[Promotion]
     page: int
     limit: int
     total: int
 
 
-class Relationship(BaseModel):
-    parent_id: str
-    child_id: str
+class PromotionSettings(BaseModel):
+
+    key: str | None = None
+    value: str | int | None = None
 
 
-class ResModel(BaseModel):
-    item_id: str
-    purchased: bool
-    location: str
+class PromotionSettingsResponse(BaseModel):
+
+    result: List[PromotionSettings]
+    page: int
+    limit: int
+    total: int
+
+
+class RedeemableCategory(BaseModel):
+
+    category_id: str | None = None
+    category_name: str
+    date_created: int | None = None
+
+
+class RedeemableCategoryResponse(BaseModel):
+
+    result: List[RedeemableCategory]
+    page: int
+    limit: int
+    total: int
+
+
+class RedeemableInventory(BaseModel):
+
+    date_created: int | None = None
+    file_name: str | None
+    file_path: str | None
+    inventory_id: str | None = None
+    product_id: str | None
+    status: str | None
+    transaction_id: str | None = None
+
+
+class RedeemableInventoryResponse(BaseModel):
+
+    result: List[RedeemableInventory]
+    page: int
+    limit: int
+    total: int
+
+
+class RedeemableProduct(BaseModel):
+
+    category_id: str | None
+    category_name: str | None
+    date_created: int | None = None
+    description: str | None
+    inventory: int | None = 0
+    points: float | None = 0
+    product_id: str | None = None
+    product_name: str | None
+
+
+class RedeemableProductResponse(BaseModel):
+
+    result: List[RedeemableProduct]
+    page: int
+    limit: int
+    total: int
+
+
+class Subcategory(BaseModel):
+
+    category_id: str | None = None
+    date_created: int | None = None
+    subcategory_id: str | None = None
+    subcategory_name: str
+
+
+class SubcategoryResponse(BaseModel):
+
+    result: List[Subcategory]
+    page: int
+    limit: int
+    total: int
+
+
+class Transaction(BaseModel):
+
+    amount: float | None = 0
+    chat_id: int | None
+    points: float | None = 0
+    product_id: str | None
+    quantity: float | None = 0
+    status: str | None
+    trackId: str | None
+    txID: str | None
+    user_id: str | None = None
+
+
+class User(BaseModel):
+
+    date_created: int | None = None
+    first_name: str | None
+    points: float | None = 0
+    user_id: str | None = None
+    user_name: str | None
